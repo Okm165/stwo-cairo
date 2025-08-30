@@ -310,7 +310,7 @@ pub mod tests {
                 .map(|felt| format!("0x{:x}", felt))
                 .collect();
             proof_file
-                .write_all(sonic_rs::to_string_pretty(&proof_hex).unwrap().as_bytes())
+                .write_all(serde_json::to_string_pretty(&proof_hex).unwrap().as_bytes())
                 .unwrap();
 
             let status = Command::new("bash")
@@ -363,7 +363,7 @@ pub mod tests {
 
             let proofs = (0..n_proofs_to_compare)
                 .map(|_| {
-                    sonic_rs::to_string(
+                    serde_json::to_string(
                         &prove_cairo::<Blake2sMerkleChannel>(
                             input.clone(),
                             PcsConfig::default(),

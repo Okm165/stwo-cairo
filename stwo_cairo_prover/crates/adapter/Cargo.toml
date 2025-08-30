@@ -6,7 +6,6 @@ edition = "2021"
 
 [features]
 slow-tests = []
-std = ["dep:sonic-rs"]
 
 [dependencies]
 bytemuck.workspace = true
@@ -19,7 +18,6 @@ serde_json.workspace = true
 stwo-cairo-common.workspace = true
 tracing.workspace = true
 thiserror.workspace = true
-sonic-rs = { version = "0.3.17", optional = true }
 stwo-prover.workspace = true
 memmap2 = "0.9.5"
 bincode = { version = "2.0.1", features = [
