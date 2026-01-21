@@ -26,10 +26,14 @@ use thiserror::Error;
 use tracing::{span, Level};
 
 /// Command line arguments for adapted_stwo.
-/// Example command line:
+/// Example command lines:
 ///     ```
 ///     cargo run -r --bin adapted_stwo -- --pub_json absolute/path/to/pub.json
 ///     --priv_json absolute/path/to/priv.json --proof_path path/to/proof
+///     ```
+///     ```
+///     cargo run -r --bin adapted_stwo -- --prover_input_json absolute/path/to/prover_input.json
+///     --proof_path path/to/proof
 ///     ```
 ///
 /// For optimal performance compile with:
@@ -43,10 +47,17 @@ use tracing::{span, Level};
 ///     ```
 #[derive(Parser, Debug)]
 struct Args {
+    /// The path to the JSON file containing the public input.
+    /// Required unless `prover_input_json` is set.
     #[structopt(long = "pub_json")]
-    pub_json: PathBuf,
+    pub_json: Option<PathBuf>,
+    /// The path to the JSON file containing the private input.
+    /// Required unless `prover_input_json` is set.
     #[structopt(long = "priv_json")]
-    priv_json: PathBuf,
+    priv_json: Option<PathBuf>,
+    /// The path to a JSON file containing a serialized `ProverInput` object.
+    #[structopt(long = "prover_input_json")]
+    prover_input_json: Option<PathBuf>,
     /// The path to the JSON file containing the prover parameters (optional).
     /// The expected file format is:
     ///     {
@@ -78,6 +89,32 @@ struct Args {
     /// Verify the generated proof.
     #[structopt(long = "verify")]
     verify: bool,
+}
+
+impl Args {
+    fn load_prover_input(&self) -> Result<ProverInput, Error> {
+        if let Some(path) = &self.prover_input_json {
+            if self.pub_json.is_some() || self.priv_json.is_some() {
+                return Err(clap::Error::raw(
+                    clap::error::ErrorKind::ArgumentConflict,
+                    "Use either --prover_input_json or --pub_json/--priv_json, not both.",
+                )
+                .into());
+            }
+            return Ok(sonic_rs::from_str(&read_to_string(path)?)?);
+        }
+
+        match (self.pub_json.as_ref(), self.priv_json.as_ref()) {
+            (Some(pub_json), Some(priv_json)) => {
+                Ok(adapt_vm_output(pub_json.as_path(), priv_json.as_path())?)
+            }
+            _ => Err(clap::Error::raw(
+                clap::error::ErrorKind::MissingRequiredArgument,
+                "Provide either --prover_input_json or both --pub_json and --priv_json.",
+            )
+            .into()),
+        }
+    }
 }
 
 #[derive(Debug, Clone, clap::ValueEnum)]
@@ -114,9 +151,7 @@ fn main() -> ExitCode {
 fn run(args: impl Iterator<Item = String>) -> Result<(), Error> {
     let _span = span!(Level::INFO, "run").entered();
     let args = Args::try_parse_from(args)?;
-
-    let vm_output: ProverInput =
-        adapt_vm_output(args.pub_json.as_path(), args.priv_json.as_path())?;
+    let vm_output = args.load_prover_input()?;
 
     log::info!(
         "Casm states by opcode:\n{}",
